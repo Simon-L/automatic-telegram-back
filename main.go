@@ -67,7 +67,32 @@ func auth(next http.HandlerFunc) http.HandlerFunc {
 func usermeta(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Context().Value("Username"))
 
-	w.Write([]byte("lol"))
+	cfgStr, err := ioutil.ReadFile(filepath.Join("users/", r.Context().Value("Username").(string)+".json"))
+	if err != nil {
+		// Handle error
+		log.Println(err)
+		return
+	}
+
+	var cfg userConfig
+	if err = json.Unmarshal(cfgStr, &cfg); err != nil {
+		log.Println(err)
+	}
+
+	json, err := json.Marshal(&struct {
+		Username string `json:"username"`
+		Domain   string `json:"domain"`
+		Backend  string `json:"backend"`
+	}{
+		Username: cfg.Username,
+		Domain:   cfg.Domain,
+		Backend:  cfg.Backend,
+	})
+	if err != nil {
+		return
+	}
+
+	w.Write(json)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -133,5 +158,6 @@ func main() {
 	r.HandleFunc("/a/usermeta", auth(usermeta)).
 		Methods("GET")
 
+	log.Println("Serving on :8000...")
 	log.Fatal(http.ListenAndServe(":8000", r))
 }
