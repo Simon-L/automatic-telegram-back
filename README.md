@@ -15,5 +15,5 @@ Run with no argument to start the backend server:
 `go run *.go`
 
 #### Adding users
-Run with the `adduser` command to add a new site user:
+Run with the `adduser` command to add a new site user:  
 `go run *.go adduser -name alice@example.com -domain www.example.com -backend hugo`
