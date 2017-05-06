@@ -1,5 +1,5 @@
 # automatic-telegram-back
-Automatic Telegram: a lightweight WYSIWYG for static content generators -- backend code written in Golang
+Automatic Telegram: a lightweight CMS for static content generators -- Golang backend code
 
 ```
 $ go get
