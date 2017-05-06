@@ -2,5 +2,5 @@
   "Username": "test@example.com",
   "Password": "$2a$10$E9p/drshxKCty2TFDx7Yx.lVW/4t6T6GBl6ZdDVzqQoNSs/ZNMfCG",
   "Domain": "example.com",
-  "Backend": "Hugo"
+  "Backend": "hugo"
 }

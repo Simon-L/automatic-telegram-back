@@ -3,10 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -95,6 +99,37 @@ func usermeta(w http.ResponseWriter, r *http.Request) {
 	w.Write(json)
 }
 
+func signup(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method)
+
+	// Retrieve token from request parameters
+	tks := r.URL.Query()["token"][0]
+	fmt.Println(tks)
+
+	token, err := jwt.ParseWithClaims(tks, &atClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method")
+		}
+		serverSecret, _ := ioutil.ReadFile("id_sha256")
+		return serverSecret, nil
+	})
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Could not parse token", http.StatusUnauthorized)
+		return
+	}
+
+	// TokenType must be "signup"
+	if claims, ok := token.Claims.(*atClaims); ok && token.Valid && claims.TokenType == "signup" {
+		fmt.Println(claims)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{\"status\":\"OK\"}"))
+	} else {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+}
+
 func login(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
@@ -151,13 +186,44 @@ func login(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	r := mux.NewRouter()
+	addUserCommand := flag.NewFlagSet("adduser", flag.ExitOnError)
+	addUserName := addUserCommand.String("name", "", "New user name. (Required)")
+	addUserDomain := addUserCommand.String("domain", "", "New user site domain. (Required)")
+	addUserBackend := addUserCommand.String("backend", "", "New user generator backend {hugo|hexo|pdf|raw}. (Required)")
 
-	r.HandleFunc("/login", login).
-		Methods("POST")
-	r.HandleFunc("/a/usermeta", auth(usermeta)).
-		Methods("GET")
+	if len(os.Args) > 1 {
+		if os.Args[1] == "adduser" {
+			addUserCommand.Parse(os.Args[2:])
+			AddUser(*addUserName, *addUserDomain, *addUserBackend)
+		} else {
+			fmt.Println("Available commands:\n\nadduser - add a new user and destination site")
+			addUserCommand.Usage()
+			fmt.Println("")
+			os.Exit(1)
+		}
+	} else {
+		// Main router
+		r := mux.NewRouter()
 
-	log.Println("Serving on :8000...")
-	log.Fatal(http.ListenAndServe(":8000", r))
+		// Api subrouter and handlers
+		api := r.PathPrefix("/a").Subrouter()
+		api.HandleFunc("/login", login).
+			Methods("POST")
+		api.HandleFunc("/signup/", signup).
+			Methods("GET")
+		api.HandleFunc("/usermeta", auth(usermeta)).
+			Methods("GET")
+
+		// Router to static frontend files
+		// NOTE(Simon-L): Fix ASAP, proxying to frontend served by Aurelia cli
+		url, _ := url.Parse("http://localhost:9000/")
+		proxy := httputil.NewSingleHostReverseProxy(url)
+		r.HandleFunc("/{rest:.*}", func(w http.ResponseWriter, r *http.Request) {
+			r.URL.Path = mux.Vars(r)["rest"]
+			proxy.ServeHTTP(w, r)
+		})
+
+		log.Println("Serving on :8000...")
+		log.Fatal(http.ListenAndServe(":8000", r))
+	}
 }
