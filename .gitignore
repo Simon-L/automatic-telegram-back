@@ -1,0 +1,3 @@
+automatic-telegram-back
+users/*
+!users/test@example.com.json
